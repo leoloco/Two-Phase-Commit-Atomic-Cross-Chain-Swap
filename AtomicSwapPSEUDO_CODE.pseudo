@@ -1,0 +1,29 @@
+abstract class AtomicSwapSC {
+    enumState{Published(P),Redeemed(RD),Refunded(RF)} 
+    Address s,r //Sender and recipient publickeys.
+    Asset a
+    State state
+    CSrd //Redemption commitment scheme 
+    CSrf //Refund commitment scheme
+    procedure CONSTRUCTOR(Address r, CS rd, CS rf)
+        this.s = msg.sender, this.r = r this.a = msg.value
+        this.rd = rd, this.rf = rf
+        state = P
+    end procedure
+    procedure REDEEM(Secret srd)
+        requires(state == P and IsRedeemable(srd)) 
+        transfer a to r
+        state = RD
+    end procedure 
+    procedure REFUND(Secretsrf)
+        requires(state == P and IsRefundable(Secret srf))
+        transfer a to s
+        state = RF
+    end procedure
+    procedure ISREDEEMABLE(Secret srd)
+        return verify(rd, srd) 
+    end procedure 
+    procedure ISREFUNDABLE(Secret srf)
+        return verify(rf, srf ) 
+    end procedure
+}

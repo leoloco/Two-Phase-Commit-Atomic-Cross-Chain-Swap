@@ -1,0 +1,144 @@
+class Adapter{
+
+    struct Network{
+        SC ACCS;
+        SC relay;
+        address myAddress;
+        pk myPrivKey;
+    }
+    mapping(string => Network) networks;
+    
+
+    struct Swap{
+        bytes swapID;
+        String targetNetwork;
+        String originNetwork;
+        bytes secret;
+        bytes hashedSecret;
+        address receiver;
+        int value;
+        float exchangeRatio;
+    }
+    mapping (bytes => Swap) swaps;
+
+    enum States {
+        INVALID,
+        PRECOMMITED,
+        COMMITED,
+        REDEEMED,
+        REFUNDED,
+    }
+    mapping (bytes => States) swapStates;
+
+    function getTransactionByHash(bytes txHash) do //Retrieves transaction details from hash
+        return(string rawTransaction, int transactionIndex, bytes merkleSibling, bytes blockHash)
+    end
+    function decodeRawTransaction(string rawTransaction) do //Decode input from raw tx
+        return(JSON(rawTransaction.data))//returns a JSON object corresponding to the data field of a tx
+    end
+
+    function registerNetwork(SC ACCS, SC relay, string networkName, address myAddress, pk myPrivKey){
+        //This functions create and registers a new blockchain network
+        Network network = Network({
+            this.ACCS = ACCS;
+            this.relay = relay;
+            this.myAddress = myAddress;
+            this.myPrivKey = myPrivKey;
+        })
+        this.networks[networkName] = network;
+    }
+
+    function preCommit(bytes swapID, string originNetwork, string targetNetwork, int value, float exchangeRatio, bytes hashedSecret, address receiver) do
+        //Calls the ACCS to pre commit the swap
+        Swap swap = Swap({
+            if(swapID == null)
+                //If initiator
+                this.swapID = random(32);
+            else
+                //If participant
+                this.swapID = swapID;
+            end if
+            this.targetNetwork = targetNetwork;
+            this.originNetwork = originNetwork;
+            this.value = value;
+            this.exchangeRatio = exchangeRatio;
+            this.receiver = receiver;
+            if(hashedSecret == null)
+                this.secret = random(32),//Generate random 32 Bytes 
+                this.hashedSecret = SHA256(this.secret)
+            else
+                this.hashedSecret = hashedSecret
+            end if
+        })
+        string txHash = networks[targetNetwork].ACCS.call.preCommit(swap.swapID, swap.hashedSecret, swap.value, swap.exchangeRatio, swap.targetNetwork)
+        if(txHash != null)//If tx worked
+            this.swaps[txHash] = swap;
+            this.swapStates[txHash] = PRECOMMITED;
+            if(receiver != null)//If the swap is already in preCommit state on the other side
+                //Request commit on the other side
+                if(networks[targetNetwork].ACCS.call.reqCommit(this.decodeRawTransaction(txHash) != null))
+                    //Request self commit
+                    network[originNetwork].ACCS.call.commmit(swap.swapID, receiver);
+                    swapStates[swapID] = COMMITED;
+                    //Run the participant cron job to redeem or refund
+                    cronJobParticipant(swap.swapID)
+                end if
+            else
+                //Run initiator cron job
+                cronJobInitiator(swap.swapID)
+            end if
+        end if
+    end
+    
+    //Can be called anytime while swap is in precommit state
+    function refund(bytes swapID) do
+        this.networks[this.swaps[swapID].targetNetwork].ACCS.call.refund(swapID);
+        this.swapStates[swapID] = REFUNDED;
+    end
+    function cronJobParticipant(bytes swapID) do
+        while(this.swapStates[swapID] != (REDEEMED || REFUNDED)) do
+            for(every new valid block of networks[this.swaps[swapID].targetNetwork]) do
+                secret = this.networks[this.swaps[swapID].targetNetwork].ACCS.call.checkSecretKey(swapID);
+                if (secret != null) do
+                    if(this.networks[this.swaps[swapID].targetNetwork].ACCS.call.redeem(swapID, key)) do
+                        this.swapStates[swapID] = REDEEMED;
+                    end if
+                end if
+                if(this.networks[this.swaps[swapID].targetNetwork].ACCS.call.checkTimelock(swapID)<= now) do 
+                        this.networks[this.swaps[swapID].originNetwork].ACCS.call.refund(swapID);
+                        this.swapStates[swapID] = REFUNDED;
+                end if
+            end for
+        end while
+    end
+    function cronJobInitiator(bytes swapID) do
+        while(this.swapStates[swapID] != (REDEEMED || REFUNDED)) do
+            for(every new valid block of networks[this.swaps[swapID].targetNetwork]) do
+                if (this.networks[this.swaps[swapID].targetNetwork].ACCS.call.checkState(swapID) == COMMITED) do
+                    if(this.networks[this.swaps[swapID].targetNetwork].ACCS.call.checkTimelock(swapID) <= now) do 
+                        this.networks[this.swaps[swapID].originNetwork].ACCS.call.refund(swapID);
+                        this.swapStates[swapID] = REFUNDED;
+                    end if
+                    if(this.networks[this.swaps[swapID].targetNetwork].ACCS.call.redeem(swapID, this.swaps[swapID].secret)) do
+                        this.swapStates[swapID] = REDEEMED;
+                    end if
+                end if
+            end for
+        end while 
+    end
+
+    function reqPreCommit(string txHash, string targetNetwork) do
+        data = this.audit(txHash).data
+        this.preCommit(data.swapID, data.targetNetwork, data.originNetwork, data.value, 1/data.exchangeRatio, data.hashedSecret, data.receiver)
+        //Note : In this function call target network and origin network are swapped in the pipe for symetry
+        //Note : In this function call exchange ratio has been inversed for symetry
+    end
+
+    function audit(string txHash, string targetNetwork) do
+        //Calls a relay to verify that the provided tx is valid and burried under sufficient blocks
+        //Decodes the raw TX
+        //Returns an object containing tx data
+        requires ralays.targetNetwork.verifyTransaction(this.getTransactionByHash(txHash)) == true
+        return decodeRawTransaction(this.getTransactionByHash(txHash).rawTransaction)
+    end
+}

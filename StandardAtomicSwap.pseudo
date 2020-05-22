@@ -1,0 +1,93 @@
+class AtomicSwap {
+    struct Swap{
+        int timelock;
+        int value;
+        address initiator;
+        address participant;
+        bytes secret;
+        bytes hashedSecret;
+    }
+
+    enum States {
+        INVALID,
+        INITIATED,
+        OPEN,
+        REDEEMED,
+        REFUNDED,
+    }
+
+    mapping (bytes => Swap) swaps;
+    mapping (bytes => States) swapStates;
+
+
+    function participate(bytes swapID,address participant,bytes hashedSecret, int timelock, int value) do
+        // Store the details of the swap.
+        Swap swap = Swap({
+            this.timelock = timelock,
+            this.value = value,
+            this.initiator = msg.sender,
+            this.participant = participant,
+            this.hashedSecret = hashedSecret,
+            this.secret = 0,
+        });
+        //Store the swap 
+        this.swaps[swapID] = swap;
+        //Set the state
+        this.swapStates[swapID] = States.OPEN;
+    end
+
+    function initiate(bytes swapID, bytes hashedSecret, int timelock, int value) do
+        //Store the details of the swap
+        Swap memory swap = Swap({
+            this.timelock = timelock,
+            this.value = value,
+            this.initiator = msg.sender,
+            this.participant = msg.sender,//No participant has been set yet so participant set to initiator address
+            hashedSecret = hashedSecret,
+            this.secretKey = 0
+        });
+        //Store the swap 
+        this.swaps[swapID] = swap;
+        //Set the state
+        this.swapStates[swapID] = States.INITIATED;
+        return true
+    end
+  
+    function setParticipant(bytes swapID, address participant) do
+        requires this.swaps[swapID].initiator == msg.sender
+        requires this.swapStates[swapID] == INITIATED
+        this.swaps[swapID].participant = participant;
+        this.swapStates[swapID] = States.OPEN;
+    end
+
+    function redeem(bytes swapID, bytes secret) do
+        requires this.swapStates[swapID] == OPEN
+        requires this.swap[swapID].participant == msg.sender
+        requires this.swaps[swapID].timelock < now
+        requires SHA256(secret) == this.swaps[swapID].hashedSecret
+        //Set the secret key in order to reveal it to the other party
+        this.swaps[swapID].secret = secret;
+        // Close the swap.
+        this.swapStates[swapID] = States.CLOSED;
+        // Transfer the ETH funds from this contract to the participant
+        this.swaps[swapID].participant.transfer(this.swaps[swapID].value);
+    end
+
+    function refund(bytes swapID) do
+        requires this.swapStates[swapID] == OPEN
+        requires this.swaps[swapID].initiator == msg.sender
+        requires this.swaps[swapID].timelock > now
+        swapStates[swapID] = States.EXPIRED;
+        // Transfer the ETH value from this contract back to the ETH trader.
+        this.swaps[swapID].initiator.transfer(this.swap[swapID].value)
+    end
+
+    function checkSwap(bytes swapID) do
+        return this.swaps[swapID]
+    end
+
+    function checkSecretKey(bytes swapID) do 
+        requires this.swapStates[swapsID] == REDEEMED
+        return this.swaps[swapID].secretKey
+    end
+}
