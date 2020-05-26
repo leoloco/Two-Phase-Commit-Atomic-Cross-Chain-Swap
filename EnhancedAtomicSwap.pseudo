@@ -1,6 +1,8 @@
-class AtomicSwap {
+#Define timeDelta = 2*MAX(  (blocktime of any blockchain possibly involved in a swap)
+                            *(number of blocks required to avoid forks risk in given blockchain))
+class AtomicSwap{
     SC Relay;
-
+    
     struct Swap{
         int timelock;
         int value;
@@ -11,6 +13,7 @@ class AtomicSwap {
         bytes hashedSecret;
         string targetNetwork;
     }
+    mapping (bytes => Swap) swaps;
 
     enum States {
         INVALID,
@@ -19,15 +22,14 @@ class AtomicSwap {
         REDEEMED,
         REFUNDED,
     }
-
-    mapping (bytes => Swap) swaps;
     mapping (bytes => States) swapStates;
-
-
+    
     public function preCommit(bytes swapID, bytes hashedSecret, int value, float ratio, string targetNetwork) do
+        //Check that the swap ID doesn't exist
+        requires swaps[swapID] == null;
         //Store the details of the swap
         Swap memory swap = Swap({
-            this.timelock = 0, //It is not timelocked yet because there is no participant
+            this.timelock = 0, //It is not timelocked yet because there it is not commited yet
             this.value = value,
             this.sender = msg.sender,
             this.receiver = msg.sender,//No receiver has been set yet so receiver set to sender address
@@ -42,11 +44,15 @@ class AtomicSwap {
         return true
     end
 
-    pubblic function reqCommit(string rawTransaction, int transactionIndex, bytes merkleSibling, bytes blockHash) do
+    //This function should be called by the other party's adapter
+    //It checks that the provided transaction correspond to a pre commited swap in the other blockchain
+    //If it is a valid transaction then it commits the swap
+    public function reqCommit(string rawTransaction, int transactionIndex, bytes merkleSibling, bytes blockHash) do
+        //Calls relay to audit given tx
         tx = this.Relay.call.verifyTransaction(string rawTransaction, int transactionIndex, bytes merkleSibling, bytes blockHash);
         requires data.hashedSecret == swaps[data.targetSwapID].hashedSecret;
         requires tx.data.value == swaps[tx.data.targetSwapID].value * swaps[tx.data.targetSwapID].exchangeRatio;
-        commit(tx.data.swapID, tx.from);
+        this.commit(tx.data.swapID, tx.from);
     end
 
     //Internal only commit fucntion
@@ -54,7 +60,7 @@ class AtomicSwap {
         requires this.swapStates[swapID] == PRECOMMITED
         this.swaps[swapID].receiver = receiver;
         this.swaps[swapID].timelock = now + timeDelta;
-        //Commit happends when the other ACCS is in commit or pre commit phase
+        //Commit happends when the other ACCS is in pre commit phase
         //Therefore it is reasonable at this point to set a timelock
         this.swapStates[swapID] = States.COMMITED;
     end
@@ -65,11 +71,12 @@ class AtomicSwap {
         requires this.swaps[swapID].sender == msg.sender
         this.swaps[swapID].receiver = receiver;
         this.swaps[swapID].timelock = now + (timeDelta/2);
-        //Commit happends when the other ACCS is in commit or pre commit phase
+        //Commit happends when the other ACCS is in commit phase
         //Therefore it is reasonable at this point to set a timelock
         this.swapStates[swapID] = States.COMMITED;
     end
 
+    //Public redeem function
     public function redeem(bytes swapID, bytes secret) do
         requires this.swapStates[swapID] == COMMITED
         requires this.swap[swapID].receiver == msg.sender
@@ -92,14 +99,17 @@ class AtomicSwap {
         this.swaps[swapID].sender.transfer(this.swap[swapID].value)
     end
 
+    //Returns the state of the provided swap ID
     public function checkState(bytes swapID) do
         return this.swapStates[swapID]
     end
 
+    //Returns the timelock of the provided swap ID
     puublic function checkTimeLock(bytes swapID) do
         return this.swaps[swapID].timelock
     end
 
+    //Returns the secret of the provided swap ID if it has been revelated
     public function checkSecretKey(bytes swapID) do 
         requires this.swapStates[swapsID] == REDEEMED
         return this.swaps[swapID].secret

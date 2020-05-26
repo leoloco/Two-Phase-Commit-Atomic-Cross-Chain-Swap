@@ -47,9 +47,11 @@ class Adapter{
         })
         this.networks[networkName] = network;
     }
-
+    //This pre commit function can be called either by the initiator or the participant
+    //When called by the initiator the parameters swapID, receiver and hashed secret are set to null
+    //When called by the participant the parameters swapID, receiver and hashed secret are set to the value of the other swap in pre commited state
     function preCommit(bytes swapID, string originNetwork, string targetNetwork, int value, float exchangeRatio, bytes hashedSecret, address receiver) do
-        //Calls the ACCS to pre commit the swap
+        //Register a new swap
         Swap swap = Swap({
             if(swapID == null)
                 //If initiator
@@ -63,11 +65,15 @@ class Adapter{
             this.value = value;
             this.exchangeRatio = exchangeRatio;
             this.receiver = receiver;
+            //If initiator
             if(hashedSecret == null)
                 this.secret = random(32),//Generate random 32 Bytes 
-                this.hashedSecret = SHA256(this.secret)
+                this.hashedSecret = SHA256(this.secret)//Hash secret 
+            //Else if participant 
             else
-                this.hashedSecret = hashedSecret
+                this.secret = null;
+                //Set same hashed secret as the other preCommited swap
+                this.hashedSecret = hashedSecret;
             end if
         })
         string txHash = networks[targetNetwork].ACCS.call.preCommit(swap.swapID, swap.hashedSecret, swap.value, swap.exchangeRatio, swap.targetNetwork)
@@ -95,18 +101,29 @@ class Adapter{
         this.networks[this.swaps[swapID].targetNetwork].ACCS.call.refund(swapID);
         this.swapStates[swapID] = REFUNDED;
     end
+
+    //Participant redeem refund cron job
     function cronJobParticipant(bytes swapID) do
+        //While the swap is not redeemed or refunded
         while(this.swapStates[swapID] != (REDEEMED || REFUNDED)) do
+            //For every new incoming and validated new blocks i.e burried under a sufficient amount of blocks 
             for(every new valid block of networks[this.swaps[swapID].targetNetwork]) do
+                //Check if the secret key has been revelated i.e the swap has been redeemed
                 secret = this.networks[this.swaps[swapID].targetNetwork].ACCS.call.checkSecretKey(swapID);
                 if (secret != null) do
+                    //Call the redeem function with the newly revelated key
                     if(this.networks[this.swaps[swapID].targetNetwork].ACCS.call.redeem(swapID, key)) do
+                        //If the transaction has been executed, break the loop by passing to redeemed state
                         this.swapStates[swapID] = REDEEMED;
                     end if
                 end if
+                //If the timelock has expired
                 if(this.networks[this.swaps[swapID].targetNetwork].ACCS.call.checkTimelock(swapID)<= now) do 
-                        this.networks[this.swaps[swapID].originNetwork].ACCS.call.refund(swapID);
+                    //Call the refund function 
+                    if(this.networks[this.swaps[swapID].originNetwork].ACCS.call.refund(swapID))
+                        //If the transaction has been executed, break the loop by passing to refunded state
                         this.swapStates[swapID] = REFUNDED;
+                    end if
                 end if
             end for
         end while
@@ -130,8 +147,8 @@ class Adapter{
     function reqPreCommit(string txHash, string targetNetwork) do
         data = this.audit(txHash).data
         this.preCommit(data.swapID, data.targetNetwork, data.originNetwork, data.value, 1/data.exchangeRatio, data.hashedSecret, data.receiver)
-        //Note : In this function call target network and origin network are swapped in the pipe for symetry
-        //Note : In this function call exchange ratio has been inversed for symetry
+        //In this function call target network and origin network are swapped in the pipe for symetry
+        //In this function call exchange ratio has been inversed for symetry
     end
 
     function audit(string txHash, string targetNetwork) do
