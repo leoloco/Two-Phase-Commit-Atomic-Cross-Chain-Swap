@@ -22,6 +22,14 @@ Blockchain Adapters are stand-alone, self-hosted blockchain APIs that allows you
 One flaw of the ACCS is that the blockchain client of the participants is a single point of failure. A participant, even if he tries to comply with the protocol, is subject to DDOS attacks or any type of attacks delaying the propagation of a transaction. The blockchain adapters provide a solution to this flaw because it can be decentralized and distributed over several nodes.
 A template of a blockchain adapter that could be used in our protocol is presented [Adapter.pseudo](https://github.com/leoloco/Two-Phase-Commit-Atomic-Cross-Chain-Swap/blob/master/Adapter.pseudo).
 
+**HTLC based Atomic cross chain Swap**
+
+An atomic cross-chain swap is a distributed coordination task where multiple parties exchange assets across multiple blockchains, for example, trading bitcoin for ether.
+An atomic swap protocol guarantees (1) if all parties conform to the protocol, then all swaps take place, (2) if some coalition deviates from the protocol, then no conforming party ends up worse off, and (3) no coalition has an incentive to deviate from the protocol.
+This atomicity of the protocol is based on the generation of zero knowledge proof and time locking of assets. It has been formally established by M. Herlihy.
+Our protocol uses a new version of an HTLC based ACCS contract that has been modified to function with the adapters and the relays. 
+A template of a blockchain adapter that could be used in our protocol is presented [EnhancedAtomicSwap.pseudo](https://github.com/leoloco/Two-Phase-Commit-Atomic-Cross-Chain-Swap/blob/master/EnhancedAtomicSwap.pseudo).
+
 
 
 
