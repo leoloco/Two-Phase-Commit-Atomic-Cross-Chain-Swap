@@ -76,7 +76,7 @@ class Adapter{
                 this.hashedSecret = hashedSecret;
             end if
         })
-        string txHash = networks[targetNetwork].ACCS.call.preCommit(swap.swapID, swap.hashedSecret, swap.value, swap.exchangeRatio, swap.targetNetwork)
+        string txHash = networks[originNetwork].ACCS.call.preCommit(swap.swapID, swap.hashedSecret, swap.value, swap.exchangeRatio, swap.targetNetwork)
         if(txHash != null)//If tx worked
             this.swaps[txHash] = swap;
             this.swapStates[txHash] = PRECOMMITED;
@@ -128,14 +128,21 @@ class Adapter{
             end for
         end while
     end
+
+    //Initiator redeem refund cron job
     function cronJobInitiator(bytes swapID) do
+        //While the swap is not redeemed or refunded
         while(this.swapStates[swapID] != (REDEEMED || REFUNDED)) do
+            //For every new incoming and validated new blocks i.e burried under a sufficient amount of blocks
             for(every new valid block of networks[this.swaps[swapID].targetNetwork]) do
+                //Check if a swap of corresponding ID is in commited state on the target network
                 if (this.networks[this.swaps[swapID].targetNetwork].ACCS.call.checkState(swapID) == COMMITED) do
+                    //If timelock is expired call refund
                     if(this.networks[this.swaps[swapID].targetNetwork].ACCS.call.checkTimelock(swapID) <= now) do 
                         this.networks[this.swaps[swapID].originNetwork].ACCS.call.refund(swapID);
                         this.swapStates[swapID] = REFUNDED;
                     end if
+                    //If timelock not expired redeem swap on target network
                     if(this.networks[this.swaps[swapID].targetNetwork].ACCS.call.redeem(swapID, this.swaps[swapID].secret)) do
                         this.swapStates[swapID] = REDEEMED;
                     end if
