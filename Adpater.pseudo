@@ -118,7 +118,7 @@ class Adapter{
                     end if
                 end if
                 //If the timelock has expired
-                if(this.networks[this.swaps[swapID].targetNetwork].ACCS.call.checkTimelock(swapID)<= now) do 
+                if(this.networks[this.swaps[swapID].originNetwork].ACCS.call.checkTimelock(swapID)<= now) do 
                     //Call the refund function 
                     if(this.networks[this.swaps[swapID].originNetwork].ACCS.call.refund(swapID))
                         //If the transaction has been executed, break the loop by passing to refunded state
