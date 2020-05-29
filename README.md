@@ -1,6 +1,6 @@
-# h1 Two Phase Commit Atomic Cross Chain Swap
+# Two Phase Commit Atomic Cross Chain Swap
 
-# h2 Motivation
+## Motivation
 This repo contains pseudo code of a Two Phase Commit Atomic Cross Chain Swap protocol. 
 This protocol is designed to swap assets accross multiple blockchains without intermediaries such as exchanges.
 It tries to solve the shortcomings of HTLC based ACCS. HTLC based ACCS have two mains limitations : 
@@ -8,7 +8,7 @@ It tries to solve the shortcomings of HTLC based ACCS. HTLC based ACCS have two 
 - Any participant involved in a swap must be online most of the time of the swap, he has to perform multiple audit actions on several chains, and send multiple transactions on several chains.
 By using Blockchain relays and Adapters, our protocol intends to solve those shortcomings without violating the atomicity rule.
 
-# h2 Model
+## Model
 
 ##Blockchain Relay## 
 A blockchain relay is a smart contract hosted on a blockchain BCa that stores block headers of a blockchain BCb. This smart contract has “light client verification” capabilities of chain BCb on chain BCa.
