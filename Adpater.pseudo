@@ -98,7 +98,7 @@ class Adapter{
     
     //Can be called anytime while swap is in precommit state
     function refund(bytes swapID) do
-        this.networks[this.swaps[swapID].targetNetwork].ACCS.call.refund(swapID);
+        this.networks[this.swaps[swapID].originNetwork].ACCS.call.refund(swapID);
         this.swapStates[swapID] = REFUNDED;
     end
 
@@ -107,12 +107,12 @@ class Adapter{
         //While the swap is not redeemed or refunded
         while(this.swapStates[swapID] != (REDEEMED || REFUNDED)) do
             //For every new incoming and validated new blocks i.e burried under a sufficient amount of blocks 
-            for(every new valid block of networks[this.swaps[swapID].targetNetwork]) do
+            for(every new valid block of networks[this.swaps[swapID].originNetwork]) do
                 //Check if the secret key has been revelated i.e the swap has been redeemed
-                secret = this.networks[this.swaps[swapID].targetNetwork].ACCS.call.checkSecretKey(swapID);
+                secret = this.networks[this.swaps[swapID].originNetwork].ACCS.call.checkSecretKey(swapID);
                 if (secret != null) do
                     //Call the redeem function with the newly revelated key
-                    if(this.networks[this.swaps[swapID].targetNetwork].ACCS.call.redeem(swapID, key)) do
+                    if(this.networks[this.swaps[swapID].targetNetwork].ACCS.call.redeem(swapID, secret)) do
                         //If the transaction has been executed, break the loop by passing to redeemed state
                         this.swapStates[swapID] = REDEEMED;
                     end if
