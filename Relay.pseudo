@@ -1,6 +1,8 @@
 Abstract class Relay{
     String [] blocks
-    function storeBlockHeader(String blockHeader)
+
+    function storeBlockHeader(String blockHeader) do
+        //Verifies and stores a new block header. This function is for relayers.
         requires verifyBlock(blockHeader)
         this.blocks.append(blockHeader)
     end
