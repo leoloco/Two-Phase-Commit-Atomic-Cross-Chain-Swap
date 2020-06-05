@@ -85,7 +85,7 @@ class AtomicSwap{
         //Set the secret key in order to reveal it to the other party
         this.swaps[swapID].secret = secret;
         // Close the swap.
-        this.swapStates[swapID] = States.CLOSED;
+        this.swapStates[swapID] = States.REDEEMED;
         // Transfer the ETH funds from this contract to the participant
         this.swaps[swapID].receiver.transfer(this.swaps[swapID].value);
     end

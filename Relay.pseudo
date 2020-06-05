@@ -2,15 +2,17 @@ Abstract class Relay{
     String [] blocks
 
     function storeBlockHeader(String blockHeader) do
-        //Verifies and stores a new block header. This function is for relayers.
+        //Verifies and stores a new block header. 
+        //This function is for relayers.
         requires verifyBlock(blockHeader)
         this.blocks.append(blockHeader)
     end
 
-    function verifyTransaction(string rawTransaction, int transactionIndex, bytes merkleSibling, bytes blockHash) do
+    function verifyTransaction(String rawTransaction, int transactionIndex, bytes merkleSibling, bytes blockHash) do
         /*
         Verifies the presence of a transaction on the relayed blockchain, 
-        primarily that the transaction is on main chain and is buried under a sufficient amount of new blocks
+        primarily that the transaction is on main chain
+        and is buried under a sufficient amount of new blocks
         */
         if the transaction is valid
             return true
@@ -19,7 +21,7 @@ Abstract class Relay{
         end if
     end
     
-    function verifyBlock(blockHeader) do
+    function verifyBlock(String blockHeader) do
         //Computes validity of the block with standard  verification procedure
         if the block is valid
             return true
